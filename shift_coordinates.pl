@@ -12,34 +12,48 @@ die "$opt{s} doesn't exist. Exiting.\n" unless -e $opt{s};
 die "You didn't specify an output file. Exiting.\n" unless $opt{o};
 
 print "cat shifts\n";
-my @shifts   = `cat $opt{s}`;
+my @shifts = `cat $opt{s}`;
 print "cat gtf file\n";
-my @unsorted = `cat $opt{g}`;
-print "sort the thing\n";
-my @anno     = map { $_->[0] } sort { $a->[1] cmp $b->[1] || $a->[2] <=> $b->[2] } map { [$_, /(^\S+)\s+\S+\s+\S+\s+(\d+)/] } @unsorted;
-open OUT, ">sorted";
-print OUT @anno;
-close OUT;
+#my @unsorted = `cat $opt{g}`;
+my @anno = `cat $opt{g}`;
+#print "sort the thing\n";
+#my @anno = map { $_->[0] } sort { $a->[1] cmp $b->[1] || $a->[2] <=> $b->[2] } map { [$_, /(^\S+)\s+\S+\s+\S+\s+(\d+)/] } @unsorted;
 print "done\n";
 
 for ( my $i = $#shifts; $i > -1; $i-- )
 {
-    print "working on this: $shifts[$i]\n";
+    print "working on this: $shifts[$i]";
     my $shift = $shifts[$i];
     $shift =~ s/\s{1,80}/\t/g;
     my (@col) = split /\t/, $shift; 
     for ( my $i = 0; $i < @anno; $i++ )
     {
-        my @split = split /\t/, $anno[$i];
-        if ( $col[0] eq $split[0] )
+        if ( $anno[$i] )
         {
-            $split[3] -= $col[2] if $split[3] > $col[1] and $col[3] =~ /R/i;
-            $split[4] -= $col[2] if $split[4] > $col[1] and $col[3] =~ /R/i;
-            $split[3] += $col[2] if $split[3] > $col[1] and $col[3] =~ /I/i;
-            $split[4] += $col[2] if $split[4] > $col[1] and $col[3] =~ /I/i;
+            my @split     = split /\t/, $anno[$i];
+            my $newline   = "";
+            my $printable = 1;
+            if ( $col[0] eq $split[0] )
+            {
+                if ( $col[3] =~ /R/i )
+                {
+                    $printable = 0 if ( $split[3] < ($col[1] + $col[2]) and $split[3] > $col[1] ) or ( $split[4] < ($col[1] + $col[2]) and $split[4] > $col[1] );
+                    $split[3] -= $col[2] if $split[3] > $col[1];
+                    $split[4] -= $col[2] if $split[4] > $col[1];
+                }
+                elsif ( $col[3] =~ /I/i )
+                {
+                    $split[3] += $col[2] if $split[3] > $col[1];
+                    $split[4] += $col[2] if $split[4] > $col[1];
+                }
+                else
+                {
+                    die "Danger, Will Robinson!\n";
+                }
+            }
+            $newline = join "\t", @split if $printable;
+            $anno[$i] = $newline;
         }
-        my $newline = join "\t", @split;
-        $anno[$i] = $newline;
     }
 }
 open OUT, ">$opt{o}";
