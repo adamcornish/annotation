@@ -54,8 +54,7 @@ while ( my ($k, $v) = each %hash )
                 {
                     my @split = split /\t/, $lines[$i];
                     $split[7] = 0;
-                    # First CDS in the gene, so its frame is 0
-                    if ( $lines[$i+2] =~ /\tCDS\t/ ) #$i < ($#lines - 1) )
+                    if ( $lines[$i+2] =~ /\tCDS\t/ )
                     {
                         my @previous_split = split /\t/, $lines[$i+2];
                         $split[7] = ( 3 - ( $previous_split[4] - $previous_split[3] - $previous_split[7] + 1 ) % 3 ) % 3;
