@@ -26,19 +26,18 @@ while ( my ($k, $v) = each %hash )
     {
         my @lines = split /\n/, $v;
        #plus strand
-        if ( $v =~ /\tmRNA\t/ )
+        if ( $v =~ /\t+\t/ )
         {
             for ( my $i = 0; $i < @lines; $i++ )
             {
                 # fix the frames
-                if ( $lines[$i] =~ /CDS/ )
+                if ( $lines[$i] =~ /\tCDS\t/ )
                 {
                     my @split = split /\t/, $lines[$i];
                     $split[7] = 0;
-                    if ( $lines[$i-2] =~ /CDS/ )
+                    if ( $lines[$i-2] =~ /\tCDS\t/ )
                     {
                         my @previous_split = split /\t/, $lines[$i-2];
-                        print "not numeric: $lines[$i]" unless $previous_split[3] =~ /\d/;
                         $split[7] = ( 3 - ( $previous_split[4] - $previous_split[3] - $previous_split[7] + 1 ) % 3 ) % 3;
                     }
                     $lines[$i] = join ( "\t", @split );
@@ -51,17 +50,17 @@ while ( my ($k, $v) = each %hash )
             for ( my $i = $#lines; $i >= 0; $i-- )
             {
                 # fix the frames
-                if ( $lines[$i] =~ /CDS/ )
+                if ( $lines[$i] =~ /\tCDS\t/ )
                 {
                     my @split = split /\t/, $lines[$i];
                     $split[7] = 0;
                     # First CDS in the gene, so its frame is 0
-                    if ( $i < ($#lines - 1) )
+                    if ( $lines[$i+2] =~ /\tCDS\t/ ) #$i < ($#lines - 1) )
                     {
-                        my @previous_split = split /\t/, $lines[$i+1];
+                        my @previous_split = split /\t/, $lines[$i+2];
                         $split[7] = ( 3 - ( $previous_split[4] - $previous_split[3] - $previous_split[7] + 1 ) % 3 ) % 3;
-                        $lines[$i] = join ( "\t", @split );
                     }
+                    $lines[$i] = join ( "\t", @split );
                 }
             }
         }
