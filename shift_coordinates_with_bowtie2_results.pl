@@ -4,8 +4,8 @@ use strict;
 use Getopt::Std;
 
 my %opt;
-getopts ( "hf:1:2:", \%opt );
-die "Usage: $0 -f v2_annotation.gtf -1 sam_dir_1 -2 sam_dir_2\n" if $opt{h} or !$opt{f} or !$opt{1} or !$opt{2};
+getopts ( "hs:f:1:2:", \%opt );
+die "Usage: $0 -f v2_annotation.gtf -s seq_dir -1 sam_dir_1 -2 sam_dir_2\n" if $opt{h} or !$opt{f} or !$opt{1} or !$opt{2} or !$opt{s};
 
 print "build gtf hash\n";
 my @data = `cat $opt{f}`;
@@ -24,16 +24,23 @@ my $i = 1;
 chomp (my $total = `grep -cP "\\tmRNA\\t" $opt{f}`);
 while ( my ($k,$v) = each %anno )
 {
-    chomp ( my $pos1  = `tail -n1 $opt{1}/$k.sam | cut -f4` );
-    chomp ( my $pos2  = `tail -n1 $opt{2}/$k.sam | cut -f4` );
-    chomp ( my $rc1   = `tail -n1 $opt{1}/$k.sam | cut -f2` );
-    chomp ( my $rc2   = `tail -n1 $opt{2}/$k.sam | cut -f2` );
-    my $newv  = "";
+    chomp ( my $tail1 = `tail -n1 $opt{1}/$k.sam` );
+    chomp ( my $tail2 = `tail -n1 $opt{2}/$k.sam` );
+    chomp ( my $fasta = `cat $opt{s}/$k.fasta` );
+    my @cut1 = split /\t/, $tail1;
+    my @cut2 = split /\t/, $tail2;
+    my ($rc1,$chr1,$pos1,$tmp) = ($cut1[1],$cut1[2],$cut1[3],$cut1[9]);
+    my ($rc2,$chr2,$pos2)      = ($cut2[1],$cut2[2],$cut2[3]);
+    my ($seq) = $fasta =~ /.+?\n(.+)/s;
+    $seq =~ s/\s//g;
+    my $rev  = reverse $tmp;
+    my $newv = "";
     my ($start, $stop) = $v =~ /mRNA\s(\d+)\s(\d+)/;
+    $rev =~ tr/ACGTacgt/TGCAtgca/;
     if ( $pos1 and $pos2 )
     {
         printf ( "%5d/$total: $k\n", $i++ );
-        if ( $pos1 < $pos2 )
+        if ( $pos1 < $pos2 or ( $pos1 == $pos2 and substr($seq,0,100) eq substr($tmp,0,100) ) )
         {
             my @lines = split /\n/, $v;
             foreach my $line ( @lines )
@@ -41,14 +48,12 @@ while ( my ($k,$v) = each %anno )
                 my @cols = split /\t/, $line;
                 $cols[3] -= $start - $pos1;
                 $cols[4] -= $start - $pos1;
+                $cols[0] = $chr1;
                 $newv .= join "\t", @cols;
                 $newv .= "\n";
             }
         }
-# if R2 is on the left side of R1, then the gene starts at the very end of R1 and heads <- that way until the beginning of R2
-# if this is the case, we need to reverse the order of the exons. Exon n becomes exon 1, exon n-1 becomes exon 2, etc.
-# flip the exons and then build new CDS? just count the number of exons in it is, yeah?
-        elsif ( $pos1 > $pos2 )
+        elsif ( $pos1 > $pos2 or ( $pos1 == $pos2 and substr($seq,0,100) eq substr($rev,0,100) ) )
         {
             my @exons;
             my @CDS;
@@ -59,7 +64,7 @@ while ( my ($k,$v) = each %anno )
             chomp ( my $seq = `tail -n1 $opt{1}/$k.sam | cut -f10` );
             my $seqlen = length ( $seq );
             $pos1 += $seqlen - 1;
-            my ($pre,$post) = $lines[0] =~ /(\S+\s\S+)\s\S+\s\S+\s\S+(.+)/;
+            my ($pre,$post) = $lines[0] =~ /\S+(\s\S+)\s\S+\s\S+\s\S+(.+)/;
             foreach my $line ( @lines ) 
             { 
                 my @split = split /\t/, $line;
@@ -78,7 +83,7 @@ while ( my ($k,$v) = each %anno )
                 my @split  = split /\t/, $exon;
                 my $coord1 = $pos1 - $split[0] - $split[1];
                 my $coord2 = $pos1 - $split[0];
-                push @tmp, "$pre\texon\t$coord1\t$coord2$post";
+                push @tmp, "$chr1$pre\texon\t$coord1\t$coord2$post";
             }
             @final = reverse @tmp;
             foreach my $CDS ( @CDS )
@@ -86,7 +91,7 @@ while ( my ($k,$v) = each %anno )
                 my @split  = split /\t/, $CDS;
                 my $coord1 = $pos1 - $split[0] - $split[1];
                 my $coord2 = $pos1 - $split[0];
-                push @tmp, "$pre\tCDS\t$coord1\t$coord2$post";
+                push @tmp, "$chr1$pre\tCDS\t$coord1\t$coord2$post";
             }
             $newv = join "\n", @tmp;
             $newv .= "\n";
@@ -99,6 +104,7 @@ while ( my ($k,$v) = each %anno )
                 my @cols = split /\t/, $line;
                 $cols[3] -= $start - $pos1;
                 $cols[4] -= $start - $pos1;
+                $cols[0] = $chr1;
                 $newv .= join "\t", @cols;
                 $newv .= "\n";
             }
